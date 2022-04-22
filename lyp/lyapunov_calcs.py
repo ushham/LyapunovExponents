@@ -3,7 +3,6 @@
     Definition of different methods of calculating the Lyapunov Exponents and vectors
 """
 
-import sys
 from common_systems import lorenz
 from integration import rungekutta4
 from system import DynamicalSystem

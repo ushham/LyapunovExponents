@@ -65,8 +65,8 @@ if __name__ == "__main__":
     res[0, :] = y0
 
     functions = system.num_funcs()
-    jacobian = system.jacobian()
-    jac_func = jacobian.num_funcs()
+    system.calculate_jacobian()
+    jac_func = system.jacobian.num_funcs()
 
 
 

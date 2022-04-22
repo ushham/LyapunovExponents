@@ -65,12 +65,52 @@ class DynamicalSystem(System):
     def __init__(self) -> None:
         System.__init__(self)
         self.substitutions = list()
+        self.jacobian = System()
 
     def convert_location(self, locs):
         ll = list()
         for v, l in zip(self.variables, locs):
             ll.append((v, l))
         return ll
+
+    def derivative(self, symbol, order=1):
+        """Returns the equations differentiated wrt the given `symbol`.
+
+        Parameters
+        ----------
+        sumbol: Sympy symbol
+            The symbol with respect to which the basis is to be differentiated.
+
+        order: int, optional
+            The order of the derivative. Default to first order.
+
+        Returns
+        -------
+        DynamicalSystem:
+            A new set of equations object with the differentiated equations.
+        """
+        dequ = list(map(lambda func: diff(func, symbol, order), self.equations))
+        dsys = DynamicalSystem()
+        dsys.variables = self.variables
+        dsys.equations = dequ
+        dsys.substitutions = self.substitutions
+        return dsys
+
+    
+    def calculate_jacobian(self):
+        """Returns a symbolic matrix of the Jacobian of the system.
+
+        Returns
+        -------
+        DynamicalSystem:
+            A new 2-d set of equations of the generalised jacobian
+        """
+        self.jacobian = DynamicalSystem()
+        for v, p in zip(self.variables, self.parameters):
+            self.jacobian.append(v, p, self.derivative(v).equations)
+        
+        self.jacobian.parm_vals = self.parm_vals
+        self.jacobian.substitutions = self.substitutions
     
     def sub_parameters(self, new_parameters=None, matrix_fmt=False):
         """Returns system with parameters substituted for given values.
@@ -119,46 +159,7 @@ class DynamicalSystem(System):
         output = matrix_equations if matrix_fmt else list(matrix_equations)
 
         return output
-
-    
-    def derivative(self, symbol, order=1):
-        """Returns the equations differentiated wrt the given `symbol`.
-
-        Parameters
-        ----------
-        sumbol: Sympy symbol
-            The symbol with respect to which the basis is to be differentiated.
-
-        order: int, optional
-            The order of the derivative. Default to first order.
-
-        Returns
-        -------
-        DynamicalSystem:
-            A new set of equations object with the differentiated equations.
-        """
-        dequ = list(map(lambda func: diff(func, symbol, order), self.equations))
-        dsys = DynamicalSystem()
-        dsys.variables = self.variables
-        dsys.equations = dequ
-        dsys.substitutions = self.substitutions
-        return dsys
-
-    def jacobian(self):
-        """Returns a symbolic matrix of the Jacobian of the system.
-
-        Returns
-        -------
-        DynamicalSystem:
-            A new 2-d set of equations of the generalised jacobian
-        """
-        jac = DynamicalSystem()
-        for v, p in zip(self.variables, self.parameters):
-            jac.append(v, p, self.derivative(v).equations)
-        
-        jac.parm_vals = self.parm_vals
-        jac.substitutions = self.substitutions
-        return jac
+  
 
     def num_funcs(self, new_parameters=None, location=None):
         """Return the basis functions with as python callable.
@@ -229,6 +230,9 @@ if __name__ == "__main__":
     lorenz.model_definition(variables, parameters, lorenz_equations)
     lorenz.base_parameters(parms)
     print(lorenz.sub_parameters())
+
+    jacobain = lorenz.calculate_jacobian()
+    print(lorenz.jacobian.sub_parameters())
     
 
  

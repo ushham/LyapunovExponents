@@ -35,7 +35,6 @@ if __name__ == "__main__":
     # print(lorenz.subs_functions(('x', 1)))
     y0 = np.array([1, 2, 3])
     print(lorenz.convert_location(y0))
-    jac = lorenz.jacobian()
 
-    print(jac.sub_parameters(matrix_fmt=True))
-    print(jac.parm_vals)
+    print(lorenz.jacobian.sub_parameters(matrix_fmt=True))
+    print(lorenz.jacobian.parm_vals)
