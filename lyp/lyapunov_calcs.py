@@ -31,6 +31,40 @@ class LyapunovCalculations():
         exponent = np.log(delta / delta0)
         return exponent, err_vec
 
+    def _gram_schmidt(self, basis):
+        """
+            Take a set of basis vectors and orthonormalise these.
+            Here the first basis vector is kept in the same direction.
+            The orthogonalised basis vectors and the scaling coefficients are returned.
+        """
+        dimentions = self.system.dimension()
+        out_vecs = np.empty_like(basis)
+        exponents = np.empty(dimentions)
+        
+        for i in range(dimentions):
+            vec = basis[i]
+            for j in range(i):
+                vec -= np.dot(vec, out_vecs[j]) * out_vecs[j]
+            print(vec)
+
+            # TODO: Issue with np.linalg.norm
+            exponents[i] = np.linalg.norm(vec)
+            out_vecs[i] = vec / exponents[i]
+
+        return out_vecs, exponents
+
+    def _phi_dot(self, basis, location):
+        """
+            Function to calculate the system P' = J(location) P.
+            This is done by calculating how the Jacobian (at the gievn location)
+            alters the given basis directions.
+            This function is designed to provide the tendencies to then be used by an integrator to calculate the value of P.
+        """
+
+        jac = self.system.jacobian.sub_values(location=location, matrix_fmt=True)
+        jac = np.array(jac)
+
+        return jac @ basis      
 
     def trajectory(self, ic=None, max_time=100, time_step=0.01):
         if ic is None:
@@ -81,13 +115,23 @@ class LyapunovCalculations():
         perc_to_drop = 0.25 if drop_sec is None else drop_sec
         return time_div[int(perc_to_drop * steps):]
 
+    def gram_schmidt_method():
+        """
+            Calculate all the Lyapunov exponents by calculating the limit of the backwards Lyapunov vectors.
+        """
+        # Finish coding the gs function
+        # link up RK4 method with coupled system
+        # make variables to store the exponents and the vectors
+        # check if the vectors calculated here are of any use
+        return 0
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     system = lorenz()
     diag = LyapunovCalculations(system)
-    res = diag.max_lyapunov_exp(drop_sec=0.01)
-    plt.plot(res)
-    plt.show()
+    # res = diag.max_lyapunov_exp(drop_sec=0.01)
+    # plt.plot(res)
+    # plt.show()
+    print(diag._gram_schmidt(np.array(system.jacobian.sub_values(location=[1, 1, 1], matrix_fmt=True))))
     

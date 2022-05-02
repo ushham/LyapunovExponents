@@ -40,7 +40,7 @@ class System(ABC):
         return var_len, eq_len
 
     def dimension(self):
-        return Matrix(self.equations).shape
+        return Matrix(self.equations).shape[0]
 
     def append(self, var, parms, item):
         self.variables.append(var)
@@ -57,6 +57,12 @@ class System(ABC):
     def base_parameters(self, params):
         self.parm_vals = params
         self.jacobian.parm_vals = params
+
+    def convert_location(self, locs):
+        ll = list()
+        for v, l in zip(self.variables, locs):
+            ll.append((v, l))
+        return ll
 
     def sub_parameters(self, new_parameters=None, matrix_fmt=False):
         """Returns system with parameters substituted for given values.
@@ -187,11 +193,6 @@ class DynamicalSystem(System):
         self.substitutions = list()
         self.model_definition(var, params, item)
 
-    def convert_location(self, locs):
-        ll = list()
-        for v, l in zip(self.variables, locs):
-            ll.append((v, l))
-        return ll
 
 
     
@@ -220,5 +221,6 @@ if __name__ == "__main__":
     print(lorenz.sub_parameters())
 
     print(lorenz.jacobian.sub_parameters(matrix_fmt=True))
-    funcs = lorenz.jacobian.num_funcs()
-    print(len(funcs))
+    
+    print(lorenz.jacobian.sub_values(location=[1, 1, 1], matrix_fmt=True))
+    print(lorenz.dimension())
