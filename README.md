@@ -1,14 +1,14 @@
 # Lyapunov Analysis
 
-This library provideds a set of calculations for numerically finding Lyapunov exponents and vectors of a given dynamical system. 
+This library provides a set of calculations for numerically finding Lyapunov exponents and vectors of a given dynamical system. 
 
 
 ## Outputs
 
 TBC
 
-
 ### Maximal Lyapunov Exponent of System
+
 Using the class `LyapunovCalculations`.
 This class takes the `DynamicalSystem` as an input and produces an array of the maximal Lyapunov exponent over time:
 
@@ -55,18 +55,13 @@ parms=[10., 28., 8/3]
 lorenz.base_parameters(parms)
 ```
 
-Here the system is defined as:
-$$
-\begin{align*}
-    \dot{x} &= \sigma ~ (y - x)\\
-    \dot{y} &= x ~ (\rho-z)-y\\
-    \dot{z} &= xy - \beta z
-\end{align*}
-$$
+Here the system is defined symbolically as:
 
-with the variables $\{x, ~y, ~z\}$ and the parameters $\{\sigma,~ \rho,~ \beta\}$.
+![Lorenz_system](images/Lorenz_system.png)
 
-The user can then 
+With the following parameters and variables:
+
+![Lorenz_parms](images/Lorenz_parms.png)
 
 ## License
 
