@@ -9,6 +9,7 @@
 from abc import ABC
 import sys
 from sympy import symbols, lambdify, diff, Matrix
+import numpy as np
 
 
 # TODO: I am converting from sympy.Matrix objects to lists and vice versa, is this ok?
@@ -27,6 +28,9 @@ class System(ABC):
         self.parameters = list()
         self.parm_vals = list()
         self.equations = list()
+
+        #Model input / output dimensions
+        self.model_dims = (None, None)
 
     def __str__(self) -> str:
         return self.variables.__str__(), self.equations.__str__()
@@ -52,7 +56,7 @@ class System(ABC):
             for v, p, it in zip(var, parms, item):
                 self.append(v, p, it)
         
-            self.calculate_jacobian()
+        self.calculate_jacobian()
 
     def base_parameters(self, params):
         self.parm_vals = params
@@ -85,14 +89,27 @@ class System(ABC):
         return output
 
 
-    def sub_values(self, new_parameters=None, location=None, matrix_fmt=False):
+    def sub_values(self, new_parameters=None, location=None, matrix_fmt=False, numpy_fmt=False):
         """Return the equation functions with the substitutions stored in the object being applied.
 
         Parameters
         ----------
-        extra_subs: list(tuple), optional
+        new_parameters: list(tuple), optional
             List of 2-tuples containing extra substitutions to be made with the equations. The 2-tuples contain first
             a `Sympy`_  expression and then the value to substitute.
+            Default: None
+
+        location: array
+            Array of coordinate values to substitute with the symbolic variables.
+            Default: None
+
+        matrix_fmt: boolian
+            Controls whether the output is in matrix format (True), or a list (False).
+            Default: False
+
+        numpy_fmt: boolian
+            Controls whether the output is a numpy array with numpy values (True), or a symbolic array (False).
+            This only has effect when the output is purely numeric (no symbols).
 
         Returns
         -------
@@ -109,6 +126,9 @@ class System(ABC):
             matrix_equations = matrix_equations.subs(self.substitutions)
 
         output = matrix_equations if matrix_fmt else list(matrix_equations)
+
+        if numpy_fmt:
+            output = np.array(output).astype(np.float64)      
 
         return output
 
@@ -151,14 +171,14 @@ class System(ABC):
         self.jacobian.parm_vals = self.parm_vals
         self.jacobian.substitutions = self.substitutions
 
-    def num_funcs(self, new_parameters=None, location=None):
+    def funcs(self, new_parameters=None, location=None):
         """Return the basis functions with as python callable.
 
         Parameters
         ----------
         extra_subs: list(tuple), optional
-            List of 2-tuples containing extra substitutions to be made with the functions before transforming them into
-            python callable. The 2-tuples contain first a `Sympy`_  expression and then the value to substitute.
+            List of 2-tuples containing extra substitutions to be made with the functions before transforming them into python callable. 
+            The 2-tuples contain first a `Sympy`_  expression and then the value to substitute.
 
         Returns
         -------
@@ -177,10 +197,7 @@ class System(ABC):
                 raise Exception.with_traceback(tb)
         
         return nf
-
     
-    
-
 class DynamicalSystem(System):
     """General base class for symbolic dynamic equations
 
@@ -192,10 +209,11 @@ class DynamicalSystem(System):
         System.__init__(self)
         self.substitutions = list()
         self.model_definition(var, params, item)
+        self.update_dims()
 
-
-
-    
+    def update_dims(self):
+        if self.variables is not None:
+            self.model_dims = (len(self.variables), self.dimension())
 
 if __name__ == "__main__":
     from sympy import symbols
@@ -215,12 +233,13 @@ if __name__ == "__main__":
         x * y - beta * z
     ]
 
-    lorenz = DynamicalSystem(variables, parameters, lorenz_equations)
+    lorenz = DynamicalSystem(var=variables, params=parameters, item=lorenz_equations)
     lorenz.base_parameters(parms)
 
-    print(lorenz.sub_parameters())
+    # print(lorenz.sub_parameters())
 
-    print(lorenz.jacobian.sub_parameters(matrix_fmt=True))
+    # print(lorenz.jacobian.sub_parameters(matrix_fmt=True))
     
-    print(lorenz.jacobian.sub_values(location=[1, 1, 1], matrix_fmt=True))
-    print(lorenz.dimension())
+    # print(lorenz.jacobian.sub_values(location=[1, 1, 1], matrix_fmt=True))
+    print(lorenz.model_dims)
+    print(lorenz.equations)
