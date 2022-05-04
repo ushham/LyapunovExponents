@@ -31,6 +31,16 @@ class LyapunovCalculations():
         exponent = np.log(delta / delta0)
         return exponent, err_vec
 
+    @staticmethod
+    def _process_lyp_exp(exp_arr, min_time, max_time, time_step):
+        time = np.linspace(min_time, max_time, exp_arr.shape[0])
+        exp_arr = np.cumsum(np.log(exp_arr), axis=0)
+
+        for i in range(exp_arr.shape[1]):
+            print(np.sum(exp_arr[:, :i], axis=1))
+            exp_arr[:, i] = np.nan_to_num(exp_arr[:, i] / time) - np.sum(exp_arr[:, :i], axis=1)
+        return exp_arr
+
     def _gram_schmidt(self, basis):
         """
             Take a set of basis vectors and orthonormalise these.
@@ -121,16 +131,13 @@ class LyapunovCalculations():
         basis[0] = ini_basis
 
         sys_funcs, jac_funcs = self.system.funcs(), self.system.jacobian.funcs()
-        ly1 = 0
         for n in range(1, num_steps):
             traj[n], basis[n] = rungekutta4_coupled(sys_funcs, jac_funcs, traj[n-1], basis[n-1], time_step)
             basis[n], lypunov_exp[n-1] = self._gram_schmidt(basis[n])
 
-            ly1 += np.log(lypunov_exp[n-1, 0])
-
-        # First row is zero due to starting loop from 1
+        # Last row is zero due to starting loop from 1
         lypunov_exp[-1] = lypunov_exp[-2]
-        return lypunov_exp, ly1
+        return self._process_lyp_exp(lypunov_exp, min_time=min_time, max_time=max_time, time_step=time_step)
 
     def reverse_gram_schmidt(self, min_time=0, max_time=100, time_step=0.01, ini_point=None):
         """
@@ -152,10 +159,35 @@ class LyapunovCalculations():
         np.fill_diagonal(ini_basis, 1)
 
         traj[0] = ini_pont
-        basis[0] = ini_basis
+        basis[-1] = ini_basis
 
         sys_funcs, jac_funcs = self.system.funcs(), self.system.jacobian.funcs()
-        
+        # We then run a trajectory forwards and save this as backwards integration leads to instability
+        for n in range(1, num_steps):
+            traj[n], basis_temp = rungekutta4_coupled(sys_funcs, jac_funcs, traj[n-1], ini_basis, time_step)
+
+        for n in range(num_steps-2, -1, -1):
+            traj_temp, basis[n] = rungekutta4_coupled(sys_funcs, jac_funcs, traj[n+1], basis[n+1], -time_step)
+            basis[n], lypunov_exp[n] = self._gram_schmidt(basis[n])
+
+        # First row is zero due to 
+        lypunov_exp[-1] = lypunov_exp[-2]
+        return 1 / self._process_lyp_exp(lypunov_exp, min_time=min_time, max_time=max_time, time_step=time_step)
+
+    def lyapunov_exp(self, runs = 1, backwards=True):
+        lyp = list()
+        for i in range(runs):
+            if backwards:
+                lyp.append(self.gram_schmidt_method())
+            else:
+                lyp.append(self.reverse_gram_schmidt())
+
+        return np.array(lyp)
+
+# TODO: make lypanuv exponent function work
+# TODO: Check over logic in reverse GS method
+# TODO: Read papers about calculating the covarient vectors
+            
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
@@ -163,13 +195,11 @@ if __name__ == "__main__":
     system = lorenz()
     diag = LyapunovCalculations(system)
     res = diag.max_lyapunov_exp(drop_sec=0.01)
-    plt.plot(res)
+    # plt.plot(res)
 
     # vec = diag._gram_schmidt(np.array(system.jacobian.sub_values(location=[1, 1, 1], matrix_fmt=True, numpy_fmt=True)))
-    ll, ly1 = diag.gram_schmidt_method(ini_point=np.array([19, 20, 50]))
-    time = np.linspace(1, 100, 10000)
-    ll = np.log(ll)
-    ll = np.cumsum(ll, axis=0)
-   
-    plt.plot(ll[:, 0] / time[:])
-    plt.show()
+    ll = diag.lyapunov_exp()
+    print(ll)
+    # plt.plot(ll)
+    # plt.ylim(-10, 5)
+    # plt.show()
