@@ -5,18 +5,16 @@
 
 from common_systems import lorenz
 from integration import rungekutta4, rungekutta4_coupled
-from system import DynamicalSystem
-from sympy import symbols, Matrix
 import numpy as np
-from abc import ABC
+from abc import ABC, abstractmethod
+from non_covarient_lyp import Fowards
 
-
-class LyapunovCalculations():
-
+class LyapunovCalculations(ABC):
     def __init__(self, system) -> None:
         self.system = system
-
         self.dim = system.model_dims
+        self.backwards = None
+        self.forwards =  None
 
     @staticmethod
     def _normalise_vector(vec, dist):
@@ -37,9 +35,50 @@ class LyapunovCalculations():
         exp_arr = np.cumsum(np.log(exp_arr), axis=0)
 
         for i in range(exp_arr.shape[1]):
-            print(np.sum(exp_arr[:, :i], axis=1))
-            exp_arr[:, i] = np.nan_to_num(exp_arr[:, i] / time) - np.sum(exp_arr[:, :i], axis=1)
+            exp_arr[:, i] = np.nan_to_num(exp_arr[:, i] / time) #- np.sum(exp_arr[:, :i], axis=1)
         return exp_arr
+
+    @abstractmethod
+    def _gram_schmidt(self, basis):
+        """
+            Take a set of basis vectors and orthonormalise these.
+            Here the first basis vector is kept in the same direction.
+            The orthogonalised basis vectors and the scaling coefficients are returned.
+        """
+        
+        pass     
+
+    @abstractmethod
+    def trajectory(self, ic, min_time, max_time, time_step):
+        
+        pass
+
+    @abstractmethod
+    def max_lyapunov_exp(self, ic, min_time, max_time, time_step, delta, drop_sec):
+        """ Function to return an array holding the evolution of the maximum lyapunov exponent
+
+        """
+        pass
+
+    @abstractmethod
+    def gram_schmidt_method(self, min_time, max_time, time_step, ini_point):
+        """
+            Calculate all the Lyapunov exponents by calculating the limit of the backwards Lyapunov vectors.
+        """
+
+        pass
+
+    @abstractmethod
+    def reverse_gram_schmidt(self, min_time, max_time, time_step, ini_point):
+        """
+            Calculate the Lyapunov exponents and the forward Lyapunov vectors by integrating the system backwards in time.
+        """
+
+        pass
+
+class Lyapunov(LyapunovCalculations):
+
+    # def __init__(self, system) -> None:
 
     def _gram_schmidt(self, basis):
         """
@@ -168,11 +207,12 @@ class LyapunovCalculations():
 
         for n in range(num_steps-2, -1, -1):
             traj_temp, basis[n] = rungekutta4_coupled(sys_funcs, jac_funcs, traj[n+1], basis[n+1], -time_step)
+            # basis[n] = np.linalg.inv(basis[n])
             basis[n], lypunov_exp[n] = self._gram_schmidt(basis[n])
 
         # First row is zero due to 
         lypunov_exp[-1] = lypunov_exp[-2]
-        return 1 / self._process_lyp_exp(lypunov_exp, min_time=min_time, max_time=max_time, time_step=time_step)
+        return self._process_lyp_exp(lypunov_exp, min_time=min_time, max_time=max_time, time_step=time_step)
 
     def lyapunov_exp(self, runs = 1, backwards=True):
         lyp = list()
@@ -184,22 +224,29 @@ class LyapunovCalculations():
 
         return np.array(lyp)
 
-# TODO: make lypanuv exponent function work
-# TODO: Check over logic in reverse GS method
+    @property
+    def forwards(self):
+        return Fowards()
+        
+
+        
+
+
 # TODO: Read papers about calculating the covarient vectors
+# TODO: Move most of functions to 
             
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     system = lorenz()
-    diag = LyapunovCalculations(system)
+    diag = Lyapunov(system)
     res = diag.max_lyapunov_exp(drop_sec=0.01)
     # plt.plot(res)
 
-    # vec = diag._gram_schmidt(np.array(system.jacobian.sub_values(location=[1, 1, 1], matrix_fmt=True, numpy_fmt=True)))
-    ll = diag.lyapunov_exp()
+    ll = diag.reverse_gram_schmidt()
+    # ll = diag.lyapunov_exp()
     print(ll)
-    # plt.plot(ll)
-    # plt.ylim(-10, 5)
-    # plt.show()
+    plt.plot(ll[200:])
+    # plt.ylim(-1, 2)
+    plt.show()

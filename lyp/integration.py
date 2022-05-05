@@ -9,7 +9,7 @@ def apply_func(func, loc):
         ns[n] = f(*loc)
     return ns
 
-def apply_matrix_func(funcs, basis, location):
+def apply_matrix_func(funcs, basis, location, inverted=False):
         """
             Function to calculate the system P' = J(location) P.
             This is done by calculating how the Jacobian (at the gievn location)
@@ -20,7 +20,12 @@ def apply_matrix_func(funcs, basis, location):
         jac = np.reshape(jac, basis.shape).T
         jac = np.array(jac)
 
-        return jac @ basis
+        if inverted:
+            out_matrix = -(jac.T @ basis)
+        else:
+            out_matrix = jac @ basis
+
+        return out_matrix
 
 def rungekutta4(func, y0, h):
     """
@@ -45,20 +50,23 @@ def rungekutta4(func, y0, h):
     
     return y
 
-# Function not yet working
 def rungekutta4_coupled(func1, func2, y0, z0, h):
     #RK4 numerical solver for a coupled system {x' = f(x), P' = J(x)P}
+    #if the step size is negative we need to invert the matrix equation
+    
+    invert_mat = (h < 0)
+
     fk1 = apply_func(func1, y0)
-    gk1 = apply_matrix_func(func2, z0, y0)
+    gk1 = apply_matrix_func(func2, z0, y0, inverted=invert_mat)
 
     fk2 = apply_func(func1, y0 + fk1 * h / 2.)
-    gk2 = apply_matrix_func(func2, z0 + gk1 * h / 2., y0 + fk1 * h / 2.)
+    gk2 = apply_matrix_func(func2, z0 + gk1 * h / 2., y0 + fk1 * h / 2., inverted=invert_mat)
 
     fk3 = apply_func(func1, y0 + fk2 * h / 2.)
-    gk3 = apply_matrix_func(func2, z0 + gk2 * h / 2., y0 + fk2 * h / 2.)
+    gk3 = apply_matrix_func(func2, z0 + gk2 * h / 2., y0 + fk2 * h / 2., inverted=invert_mat)
 
     fk4 = apply_func(func1, y0 + fk3 * h)
-    gk4 = apply_matrix_func(func2, z0 + gk3 * h, y0 + fk3 * h)
+    gk4 = apply_matrix_func(func2, z0 + gk3 * h, y0 + fk3 * h, inverted=invert_mat)
 
 
     y = y0 + (h / 6.) * (fk1 + 2*fk2 + 2*fk3 + fk4)
