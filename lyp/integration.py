@@ -4,10 +4,11 @@ from sympy import symbols, lambdify
 
 
 def apply_func(func, loc):
-    ns = np.empty(len(func))
+    ns = np.empty(len(func), np.float64)
     for n, f in enumerate(func):
         ns[n] = f(*loc)
     return ns
+
 
 def apply_matrix_func(funcs, basis, location, inverted=False):
         """
@@ -26,6 +27,7 @@ def apply_matrix_func(funcs, basis, location, inverted=False):
             out_matrix = jac @ basis
 
         return out_matrix
+
 
 def rungekutta4(func, y0, h):
     """
@@ -49,6 +51,7 @@ def rungekutta4(func, y0, h):
     y = y0 + (h / 6.) * (fk1 + 2*fk2 + 2*fk3 + fk4)
     
     return y
+
 
 def rungekutta4_coupled(func1, func2, y0, z0, h):
     #RK4 numerical solver for a coupled system {x' = f(x), P' = J(x)P}
@@ -90,8 +93,6 @@ if __name__ == "__main__":
     func0(*y0)
     print(apply_matrix_func(functions, m0, y0))
     
-
-
 
 
 """
