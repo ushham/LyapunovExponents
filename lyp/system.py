@@ -23,6 +23,8 @@ class System(ABC):
         List of dynamical equations
     """
 
+    _name = ""
+
     def __init__(self) -> None:
         self.variables = list()
         self.parameters = list()
@@ -43,6 +45,22 @@ class System(ABC):
 
         return var_len, eq_len
 
+    def __str__(self):
+        s = ""
+        for key, val in zip(self.__dict__.keys(), self.__dict__.values()):
+            if key == 'system':
+                pass
+            else:
+                s += "'"+key+"': "+str(val)+",\n"
+        return s
+
+    def _list_params(self):
+        return self._name +" Parameters:\n"+self.__str__()
+
+    def print_system(self):
+        """Print the parameters contained in the container."""
+        print(self._list_params())
+
     def dimension(self):
         return Matrix(self.equations).shape[0]
 
@@ -58,7 +76,7 @@ class System(ABC):
         
         self.calculate_jacobian()
 
-    def base_parameters(self, params):
+    def update_parameters(self, params):
         self.parm_vals = params
         self.jacobian.parm_vals = params
 
@@ -164,6 +182,7 @@ class System(ABC):
             A new 2-d set of equations of the generalised jacobian
         """
         self.jacobian = System()
+
         for v, p in zip(self.variables, self.parameters):
             self.jacobian.append(v, p, self.derivative(v).equations)
         
@@ -205,6 +224,8 @@ class DynamicalSystem(System):
     ----------
     """
 
+    _name = "DynamicalSystem"
+
     def __init__(self, var=None, params=None, item=None) -> None:
         System.__init__(self)
         self.substitutions = list()
@@ -234,12 +255,5 @@ if __name__ == "__main__":
     ]
 
     lorenz = DynamicalSystem(var=variables, params=parameters, item=lorenz_equations)
-    lorenz.base_parameters(parms)
-
-    # print(lorenz.sub_parameters())
-
-    # print(lorenz.jacobian.sub_parameters(matrix_fmt=True))
-    
-    # print(lorenz.jacobian.sub_values(location=[1, 1, 1], matrix_fmt=True))
-    print(lorenz.model_dims)
-    print(lorenz.equations)
+    lorenz.update_parameters(parms)
+    lorenz.print_system()

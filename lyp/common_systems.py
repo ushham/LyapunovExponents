@@ -23,7 +23,7 @@ def lorenz(parms=[10., 28., 8/3]):
     ]
 
     system = DynamicalSystem(variables, parameters, lorenz)
-    system.base_parameters(parms)
+    system.update_parameters(parms)
     
     return system
 
@@ -42,7 +42,7 @@ def rossler(parms=[0.2, 0.2, 5.7]):
     ]
 
     system = DynamicalSystem(variables, parameters, lorenz)
-    system.base_parameters(parms)
+    system.update_parameters(parms)
     
     return system
  
