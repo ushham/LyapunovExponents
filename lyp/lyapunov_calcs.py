@@ -7,7 +7,7 @@ from common_systems import lorenz
 from abc import ABC, abstractmethod
 from integration import rungekutta4, rungekutta4_coupled
 import visualisations as plot
-from numba import njit
+# from numba import njit
 
 class Lyp(ABC):
 

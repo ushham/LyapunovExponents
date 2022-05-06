@@ -1,4 +1,4 @@
-from numba import njit
+# from numba import njit
 import numpy as np
 from sympy import symbols, lambdify
 

@@ -1,2 +1,4 @@
 *.pyc
 /lyp_exp/*
+/venv/*
+.DS_Store
