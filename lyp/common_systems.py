@@ -9,6 +9,7 @@ from system import DynamicalSystem
 from sympy import symbols
 
 def lorenz(parms=[10., 28., 8/3]):
+    time = symbols('t')
     x, y, z = symbols('x, y, z')
     sigma, rho, beta = symbols('sigma rho beta')
 
@@ -22,12 +23,13 @@ def lorenz(parms=[10., 28., 8/3]):
         x * y - beta * z
     ]
 
-    system = DynamicalSystem(variables, parameters, lorenz)
+    system = DynamicalSystem(time, variables, parameters, lorenz)
     system.update_parameters(parms)
     
     return system
 
 def rossler(parms=[0.2, 0.2, 5.7]):
+    time = symbols('t')
     x, y, z = symbols('x, y, z')
     a, b, c = symbols('a b c')
 
@@ -41,7 +43,7 @@ def rossler(parms=[0.2, 0.2, 5.7]):
         b + z * (x - c)
     ]
 
-    system = DynamicalSystem(variables, parameters, lorenz)
+    system = DynamicalSystem(time, variables, parameters, lorenz)
     system.update_parameters(parms)
     
     return system

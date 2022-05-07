@@ -26,6 +26,7 @@ class System(ABC):
     _name = ""
 
     def __init__(self) -> None:
+        self.time = None
         self.variables = list()
         self.parameters = list()
         self.parm_vals = list()
@@ -64,15 +65,27 @@ class System(ABC):
     def dimension(self):
         return Matrix(self.equations).shape[0]
 
-    def append(self, var, parms, item):
+    def append(self, time, var, parms, item):
+        self.time = time
         self.variables.append(var)
         self.parameters.append(parms)
         self.equations.append(item)
 
-    def model_definition(self, var, parms, item):
-        if (var is not None) and (parms is not None) and (item is not None):
-            for v, p, it in zip(var, parms, item):
-                self.append(v, p, it)
+    def model_definition(self, time, var, parms, item):
+        if (time is not None):
+            self.time = time
+
+        if (var is not None):
+            for v in var:
+                self.variables.append(v)
+
+        if (parms is not None):
+            for p in parms:
+                self.parameters.append(p)
+        
+        if (item is not None):
+            for it in item:
+                self.equations.append(it)
         
         self.calculate_jacobian()
 
@@ -184,7 +197,7 @@ class System(ABC):
         self.jacobian = System()
 
         for v, p in zip(self.variables, self.parameters):
-            self.jacobian.append(v, p, self.derivative(v).equations)
+            self.jacobian.append(self.time, v, p, self.derivative(v).equations)
         
         self.jacobian.parameters = self.parameters
         self.jacobian.parm_vals = self.parm_vals
@@ -210,7 +223,8 @@ class System(ABC):
 
         for eq in eqations:
             try:
-                nf.append(lambdify(self.variables, eq))
+                vars = [self.time] + self.variables
+                nf.append(lambdify(vars, eq))
             except:
                 tb = sys.exc_info()[2]
                 raise Exception.with_traceback(tb)
@@ -226,10 +240,10 @@ class DynamicalSystem(System):
 
     _name = "DynamicalSystem"
 
-    def __init__(self, var=None, params=None, item=None) -> None:
+    def __init__(self, time=None, var=None, params=None, item=None) -> None:
         System.__init__(self)
         self.substitutions = list()
-        self.model_definition(var, params, item)
+        self.model_definition(time, var, params, item)
         self.update_dims()
 
     def update_dims(self):
@@ -240,6 +254,7 @@ if __name__ == "__main__":
     from sympy import symbols
 
     #Example of implementing new dynamical system
+    t = symbols('t')
     x, y, z = symbols('x, y, z')
     sigma, rho, beta = symbols('sigma rho beta')
 
@@ -254,6 +269,6 @@ if __name__ == "__main__":
         x * y - beta * z
     ]
 
-    lorenz = DynamicalSystem(var=variables, params=parameters, item=lorenz_equations)
+    lorenz = DynamicalSystem(time=t, var=variables, params=parameters, item=lorenz_equations)
     lorenz.update_parameters(parms)
     lorenz.print_system()

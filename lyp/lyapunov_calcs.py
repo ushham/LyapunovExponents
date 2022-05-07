@@ -24,11 +24,16 @@ class Lyp(ABC):
 
         self.num_steps = int((self.max_time - self.min_time) / self.time_step)
 
+        self.system_functions = None
+        self.jacobian_functions = None
+
     def set_params(self, dic):
         if dic is not None:
             for key, val in zip(dic.keys(), dic.values()):
                 if key in self.__dict__.keys():
                     self.__dict__[key] = val
+        
+        self.num_steps = int((self.max_time - self.min_time) / self.time_step)
 
     def __str__(self):
         s = ""
@@ -74,20 +79,17 @@ class Lyp(ABC):
     def plot_exponents(self, y_lims=False):
         pass
     
-    def trajectory(self, ic=None):
-        # The trajectory is run for 2x the number of steps and the first half are then dumped
-        if ic is None:
-            ic = np.random.rand(self.dim[1])
-
+    def trajectory(self):
         traj = np.empty((self.num_steps * 2, self.dim[1]))
-        traj[0, :] = ic
-
-        functions = self.system.funcs()
+        if self.ini_point is None:
+            traj[0, :] = np.random.rand(self.dim[1])
 
         for i in range(1, self.num_steps * 2):
-            traj[i, :] = rungekutta4(functions, traj[i-1, :], self.time_step)
+            t = i * self.time_step
+            traj[i, :] = rungekutta4(self.system_functions, t, traj[i-1, :], self.time_step)
 
         return traj[self.num_steps:]
+
 
 class NonCovarientLyp(Lyp):
     _name = "Non-Covarient"
@@ -103,19 +105,12 @@ class NonCovarientLyp(Lyp):
     @abstractmethod
     def _set_data(self):
         pass
-
-    def max_lyapunov_exp(self, ic=None, min_time=None, max_time=None, time_step=None, delta=None, drop_sec=None):
+    
+    def max_lyapunov_exp(self):
         """ Function to return an array holding the evolution of the maximum lyapunov exponent
         """
-        min_time = self.min_time if min_time is None else min_time
-        max_time = self.max_time if max_time is None else max_time
-        time_step = self.time_step if time_step is None else time_step
-        delta = self.delta if delta is None else delta
-
         # Run trajectory to ensure ic is on the attractor
-
-
-        ic = self.trajectory(ic)[-1]
+        ic = self.trajectory()[-1]
 
         traj = np.empty((self.num_steps, self.dim[1]))
         traj_del = np.empty_like(traj)
@@ -123,23 +118,20 @@ class NonCovarientLyp(Lyp):
         ly_exp = np.empty(self.num_steps-1)
 
         traj[0] = ic
-        traj_del[0] = ic + delta
-
-        functions = self.system.funcs()
+        traj_del[0] = ic + self.delta
 
         for i in range(1, self.num_steps):
-            traj[i] = rungekutta4(functions, traj[i-1], time_step)
-            traj_del[i] = rungekutta4(functions, traj_del[i-1], time_step)
+            t = i * self.time_step
+            traj[i] = rungekutta4(self.system_functions, t, traj[i-1], self.time_step)
+            traj_del[i] = rungekutta4(self.system_functions, t, traj_del[i-1], self.time_step)
 
-            ly_exp[i-1], err_vec = self._calculate_ly_exp(traj[i], traj_del[i], delta0=delta)
-            traj_del[i] = traj[i] + self._normalise_vector(err_vec, delta)
+            ly_exp[i-1], err_vec = self._calculate_ly_exp(traj[i], traj_del[i], delta0=self.delta)
+            traj_del[i] = traj[i] + self._normalise_vector(err_vec, self.delta)
 
-        time_div = np.cumsum(ly_exp) / np.linspace(min_time+1, max_time, self.num_steps-1)
+        time_div = np.cumsum(ly_exp) / np.linspace(self.min_time+1, self.max_time, self.num_steps-1)
 
         # Drop starting section
-        perc_to_drop = 0.8 if drop_sec is None else drop_sec
-        return np.mean(time_div[int(perc_to_drop * self.num_steps):])
-
+        return np.mean(time_div[int(self.drop_perc * self.num_steps):])
 
     def _gram_schmidt(self, basis):
         """
@@ -161,13 +153,13 @@ class NonCovarientLyp(Lyp):
 
         return out_vecs, exponents
 
-    def _gram_schmidt_method(self, min_time, max_time, time_step, ini_point):
+    def _gram_schmidt_method(self, min_time, max_time, time_step):
         """
             Calculate all the Lyapunov exponents by calculating the limit of the backwards Lyapunov vectors.
         """
         
         # Run the trajectory from a random initial point for the given time to ensure trajectory is on the attractor
-        ini_pont = self.trajectory(ic=ini_point)[-1]
+        ini_pont = self.trajectory()[-1]
 
         traj = np.empty((self.num_steps, self.dim[1]))
         basis = np.empty((self.num_steps, self.dim[0], self.dim[1]))
@@ -179,9 +171,9 @@ class NonCovarientLyp(Lyp):
         traj[0] = ini_pont
         basis[0] = ini_basis
 
-        sys_funcs, jac_funcs = self.system.funcs(), self.system.jacobian.funcs()
         for n in range(1, self.num_steps):
-            traj[n], basis[n] = rungekutta4_coupled(sys_funcs, jac_funcs, traj[n-1], basis[n-1], time_step)
+            t = n * self.time_step
+            traj[n], basis[n] = rungekutta4_coupled(self.system_functions, self.jacobian_functions, t, traj[n-1], basis[n-1], self.dim, time_step)
             basis[n], lypunov_exp[n-1] = self._gram_schmidt(basis[n])
 
         # Last row is zero due to starting loop from 1
@@ -189,13 +181,13 @@ class NonCovarientLyp(Lyp):
         return self._process_lyp_exp(lypunov_exp, min_time=min_time, max_time=max_time, num_steps=self.num_steps), basis
 
 
-    def _reverse_gram_schmidt(self, min_time, max_time, time_step, ini_point):
+    def _reverse_gram_schmidt(self, min_time, max_time, time_step):
         """
             Calculate the Lyapunov exponents and the forward Lyapunov vectors by integrating the system backwards in time.
         """
 
         # Run the trajectory from a random initial point for the given time to ensure trajectory is on the attractor
-        ini_pont = self.trajectory(ic=ini_point)[-1]
+        ini_pont = self.trajectory()[-1]
 
         traj = np.empty((self.num_steps, self.dim[1]))
         basis = np.empty((self.num_steps, self.dim[0], self.dim[1]))
@@ -207,13 +199,14 @@ class NonCovarientLyp(Lyp):
         traj[0] = ini_pont
         basis[-1] = ini_basis
 
-        sys_funcs, jac_funcs = self.system.funcs(), self.system.jacobian.funcs()
         # We then run a trajectory forwards and save this as backwards integration leads to instability
         for n in range(1, self.num_steps):
-            traj[n], basis_temp = rungekutta4_coupled(sys_funcs, jac_funcs, traj[n-1], ini_basis, time_step)
-
+            t = n * self.time_step
+            traj[n], basis_temp = rungekutta4_coupled(self.system_functions, self.jacobian_functions, t, traj[n-1], ini_basis, self.dim, time_step)
+        
         for n in range(self.num_steps-2, -1, -1):
-            traj_temp, basis[n] = rungekutta4_coupled(sys_funcs, jac_funcs, traj[n+1], basis[n+1], -time_step)
+            t = n * self.time_step
+            traj_temp, basis[n] = rungekutta4_coupled(self.system_functions, self.jacobian_functions, t, traj[n+1], basis[n+1], self.dim, -time_step)
             # basis[n] = np.linalg.inv(basis[n])
             basis[n], lypunov_exp[n] = self._gram_schmidt(basis[n])
 
@@ -244,6 +237,7 @@ class NonCovarientLyp(Lyp):
             orig_params[idx] = p
             self.system.update_parameters(orig_params)
             self._set_data()
+
             exp_hold.append(self.exponents_average())
         return np.array(exp_hold)
 
@@ -262,8 +256,9 @@ class Fowards(NonCovarientLyp):
         NonCovarientLyp.__init__(self, system)
 
     def _set_data(self):
-        self.exp, self.vec = self._reverse_gram_schmidt(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step, ini_point=self.ini_point)
-        self.time_steps = self.exp.shape[0]
+        self.system_functions = self.system.funcs()
+        self.jacobian_functions = self.system.jacobian.funcs()
+        self.exp, self.vec = self._reverse_gram_schmidt(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step)
 
     def exponents(self):
         if self.exp is None:
@@ -282,8 +277,9 @@ class Backwards(NonCovarientLyp):
         NonCovarientLyp.__init__(self, system)
 
     def _set_data(self):
-        self.exp, self.vec = self._gram_schmidt_method(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step, ini_point=self.ini_point)
-        self.time_steps = self.exp.shape[0]
+        self.system_functions = self.system.funcs()
+        self.jacobian_functions = self.system.jacobian.funcs()
+        self.exp, self.vec = self._gram_schmidt_method(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step)
 
     def exponents(self):
         if self.exp is None:
@@ -302,6 +298,8 @@ class Lyapunov(Lyp):
 
     def __init__(self, system) -> None:
         Lyp.__init__(self, system)
+        self.system_functions = self.system.funcs()
+        self.jacobian_functions = self.system.jacobian.funcs()
 
     def plot_trajectory(self, trajectory=None, variables=None):
         if trajectory is None:
@@ -350,5 +348,5 @@ if __name__ == "__main__":
     system = lorenz()
     diag = Lyapunov(system)
     # print(diag.forwards.max_lyapunov_exp())
-    print(diag.forwards.exponent_alter_param(rho, 0, 10, 10))
-    # print(diag.forwards.exponents_average())
+    # print(diag.forwards.exponent_alter_param(rho, 0, 10, 10))
+    # print(diag.trajectory())

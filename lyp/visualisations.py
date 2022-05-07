@@ -3,11 +3,11 @@ import matplotlib.pyplot as plt
 
 def _two_dim_traj(traj, variables):
     fig = plt.figure(figsize=(15, 10))
-    ax = fig.add_subplot(111, projection='2d')
+    ax = fig.add_subplot()
     ax.plot(traj[:, 0], traj[:, 1])
     ax.set_xlabel('$' + str(variables[0]) + '$')
     ax.set_ylabel('$' + str(variables[1]) + '$')
-    fig.show()
+    plt.show()
 
 def _three_dim_traj(traj, variables):
     fig = plt.figure(figsize=(15, 10))
