@@ -18,7 +18,7 @@ def apply_matrix_func(funcs, time, basis, location, shape, inverted=False):
             This function is designed to provide the tendencies to then be used by an integrator to calculate the value of P.
         """
         jac = apply_func(func=funcs, time=time, loc=location)
-        jac = np.reshape(jac, shape).T
+        jac = np.reshape(jac, shape)
         jac = np.array(jac)
 
         if inverted:

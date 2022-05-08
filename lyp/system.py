@@ -199,6 +199,9 @@ class System(ABC):
         for v, p in zip(self.variables, self.parameters):
             self.jacobian.append(self.time, v, p, self.derivative(v).equations)
         
+        # Transpose the jacobian as default is transposed
+        self.jacobian.equations = list(map(list, zip(*self.jacobian.equations)))
+
         self.jacobian.parameters = self.parameters
         self.jacobian.parm_vals = self.parm_vals
         self.jacobian.substitutions = self.substitutions
