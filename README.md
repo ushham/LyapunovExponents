@@ -34,6 +34,7 @@ import DynamicalSystem from system
 from sympy import symbols
 
 # Definition of symbols used in definiton
+time = symbols('t')
 x, y, z = symbols('x, y, z')
 sigma, rho, beta = symbols('sigma rho beta')
 
@@ -48,7 +49,7 @@ lorenz_equations = [
 ]
 
 # Initialise dynamical system
-lorenz = DynamicalSystem(variables, parameters, lorenz_equations)
+lorenz = DynamicalSystem(time, variables, parameters, lorenz_equations)
 
 # Input user defined values of parameters (optional)
 parms=[10., 28., 8/3]
