@@ -139,7 +139,7 @@ class NonCovarientLyp(Lyp):
             Here the first basis vector is kept in the same direction.
             The orthogonalised basis vectors and the scaling coefficients are returned.
         """
-        dimentions = self.system.dimension()
+        dimentions = basis.shape[1]
         out_vecs = np.empty_like(basis)
         exponents = np.empty(dimentions)
         
@@ -153,19 +153,22 @@ class NonCovarientLyp(Lyp):
 
         return out_vecs, exponents
 
-    def _gram_schmidt_method(self, min_time, max_time, time_step):
+    def _gram_schmidt_method(self, min_time, max_time, time_step, n_vecs=None):
         """
             Calculate all the Lyapunov exponents by calculating the limit of the backwards Lyapunov vectors.
         """
         
         # Run the trajectory from a random initial point for the given time to ensure trajectory is on the attractor
+        if n_vecs is None:
+            n_vecs = self.dim[1]
+
         ini_pont = self.trajectory()[-1]
 
         traj = np.empty((self.num_steps, self.dim[1]))
-        basis = np.empty((self.num_steps, self.dim[0], self.dim[1]))
-        lypunov_exp = np.empty_like(traj)
+        basis = np.empty((self.num_steps, self.dim[0], n_vecs))
+        lypunov_exp = np.empty((self.num_steps, n_vecs))
 
-        ini_basis = np.zeros(self.dim)
+        ini_basis = np.zeros((self.dim[0], n_vecs))
         np.fill_diagonal(ini_basis, 1)
 
         traj[0] = ini_pont
@@ -181,19 +184,22 @@ class NonCovarientLyp(Lyp):
         return self._process_lyp_exp(lypunov_exp, min_time=min_time, max_time=max_time, num_steps=self.num_steps), basis
 
 
-    def _reverse_gram_schmidt(self, min_time, max_time, time_step):
+    def _reverse_gram_schmidt(self, min_time, max_time, time_step, n_vecs):
         """
             Calculate the Lyapunov exponents and the forward Lyapunov vectors by integrating the system backwards in time.
         """
 
         # Run the trajectory from a random initial point for the given time to ensure trajectory is on the attractor
+        if n_vecs is None:
+            n_vecs = self.dim[1]
+
         ini_pont = self.trajectory()[-1]
 
         traj = np.empty((self.num_steps, self.dim[1]))
-        basis = np.empty((self.num_steps, self.dim[0], self.dim[1]))
-        lypunov_exp = np.empty_like(traj)
+        basis = np.empty((self.num_steps, self.dim[0], n_vecs))
+        lypunov_exp = np.empty((self.num_steps, n_vecs))
 
-        ini_basis = np.zeros(self.dim)
+        ini_basis = np.zeros((self.dim[0], n_vecs))
         np.fill_diagonal(ini_basis, 1)
 
         traj[0] = ini_pont
@@ -255,19 +261,19 @@ class Fowards(NonCovarientLyp):
     def __init__(self, system) -> None:
         NonCovarientLyp.__init__(self, system)
 
-    def _set_data(self):
+    def _set_data(self, n_vecs):
         self.system_functions = self.system.funcs()
         self.jacobian_functions = self.system.jacobian.funcs()
-        self.exp, self.vec = self._reverse_gram_schmidt(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step)
+        self.exp, self.vec = self._reverse_gram_schmidt(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step, n_vecs=n_vecs)
 
-    def exponents(self):
+    def exponents(self, n_vecs=None):
         if self.exp is None:
-            self._set_data()
+            self._set_data(n_vecs)
         return self.exp
     
-    def vectors(self):
+    def vectors(self, n_vecs=None):
         if self.vec is None:
-            self._set_data()
+            self._set_data(n_vecs)
         return self.vec
 
 
@@ -276,19 +282,19 @@ class Backwards(NonCovarientLyp):
     def __init__(self, system) -> None:
         NonCovarientLyp.__init__(self, system)
 
-    def _set_data(self):
+    def _set_data(self, n_vecs):
         self.system_functions = self.system.funcs()
         self.jacobian_functions = self.system.jacobian.funcs()
-        self.exp, self.vec = self._gram_schmidt_method(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step)
+        self.exp, self.vec = self._gram_schmidt_method(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step, n_vecs=n_vecs)
 
-    def exponents(self):
+    def exponents(self, n_vecs=None):
         if self.exp is None:
-            self._set_data()
+            self._set_data(n_vecs)
         return self.exp
     
-    def vectors(self):
+    def vectors(self, n_vecs=None):
         if self.vec is None:
-            self._set_data()
+            self._set_data(n_vecs)
         return self.vec
 
         
@@ -349,4 +355,4 @@ if __name__ == "__main__":
     diag = Lyapunov(system)
     # print(diag.forwards.max_lyapunov_exp())
     # print(diag.forwards.exponent_alter_param(rho, 0, 10, 10))
-    # print(diag.trajectory())
+    print(diag.forwards.exponents(n_vecs=1))
