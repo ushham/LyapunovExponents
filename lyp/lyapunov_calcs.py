@@ -95,6 +95,7 @@ class NonCovarientLyp(Lyp):
     _name = "Non-Covarient"
     def __init__(self, system) -> None:
         Lyp.__init__(self, system)
+        self.traj = None
         self.exp = None
         self.vec = None
 
@@ -104,6 +105,22 @@ class NonCovarientLyp(Lyp):
 
     @abstractmethod
     def _set_data(self):
+        pass
+
+    @abstractmethod
+    def pass_traj(self):
+        pass
+
+    @abstractmethod
+    def exponents(self):
+        pass
+
+    @abstractmethod
+    def vectors(self):
+        pass
+
+    @abstractmethod
+    def all_data(self):
         pass
     
     def max_lyapunov_exp(self):
@@ -165,10 +182,10 @@ class NonCovarientLyp(Lyp):
         ini_pont = self.trajectory()[-1]
 
         traj = np.empty((self.num_steps, self.dim[1]))
-        basis = np.empty((self.num_steps, self.dim[0], n_vecs))
+        basis = np.empty((self.num_steps, self.dim[1], n_vecs))
         lypunov_exp = np.empty((self.num_steps, n_vecs))
 
-        ini_basis = np.zeros((self.dim[0], n_vecs))
+        ini_basis = np.zeros((self.dim[1], n_vecs))
         np.fill_diagonal(ini_basis, 1)
 
         traj[0] = ini_pont
@@ -181,10 +198,10 @@ class NonCovarientLyp(Lyp):
 
         # Last row is zero due to starting loop from 1
         lypunov_exp[-1] = lypunov_exp[-2]
-        return self._process_lyp_exp(lypunov_exp, min_time=min_time, max_time=max_time, num_steps=self.num_steps), basis
+        return traj, self._process_lyp_exp(lypunov_exp, min_time=min_time, max_time=max_time, num_steps=self.num_steps), basis
 
 
-    def _reverse_gram_schmidt(self, min_time, max_time, time_step, n_vecs):
+    def _reverse_gram_schmidt(self, min_time, max_time, time_step, n_vecs, traj_to_follow):
         """
             Calculate the Lyapunov exponents and the forward Lyapunov vectors by integrating the system backwards in time.
         """
@@ -193,32 +210,39 @@ class NonCovarientLyp(Lyp):
         if n_vecs is None:
             n_vecs = self.dim[1]
 
-        ini_pont = self.trajectory()[-1]
+        if traj_to_follow is None:
+            ini_pont = self.trajectory()[-1]
 
-        traj = np.empty((self.num_steps, self.dim[1]))
-        basis = np.empty((self.num_steps, self.dim[0], n_vecs))
+            traj = np.empty((self.num_steps, self.dim[1]))
+            traj[0] = ini_pont
+        else:
+            traj = np.copy(traj_to_follow)
+
+        traj_rev = np.empty_like(traj)
+        basis = np.empty((self.num_steps, self.dim[1], n_vecs))
         lypunov_exp = np.empty((self.num_steps, n_vecs))
 
-        ini_basis = np.zeros((self.dim[0], n_vecs))
+        ini_basis = np.zeros((self.dim[1], n_vecs))
         np.fill_diagonal(ini_basis, 1)
 
-        traj[0] = ini_pont
+        
         basis[-1] = ini_basis
 
         # We then run a trajectory forwards and save this as backwards integration leads to instability
-        for n in range(1, self.num_steps):
-            t = n * self.time_step
-            traj[n], basis_temp = rungekutta4_coupled(self.system_functions, self.jacobian_functions, t, traj[n-1], ini_basis, self.dim, time_step)
+        if traj_to_follow is None:
+            for n in range(1, self.num_steps):
+                t = n * self.time_step
+                traj[n], basis_temp = rungekutta4_coupled(self.system_functions, self.jacobian_functions, t, traj[n-1], ini_basis, self.dim, time_step)
         
         for n in range(self.num_steps-2, -1, -1):
             t = n * self.time_step
-            traj_temp, basis[n] = rungekutta4_coupled(self.system_functions, self.jacobian_functions, t, traj[n+1], basis[n+1], self.dim, -time_step)
+            traj_rev[n], basis[n] = rungekutta4_coupled(self.system_functions, self.jacobian_functions, t, traj[n+1], basis[n+1], self.dim, -time_step)
             # basis[n] = np.linalg.inv(basis[n])
             basis[n], lypunov_exp[n] = self._gram_schmidt(basis[n])
 
         # First row is zero due to 
         lypunov_exp[-1] = lypunov_exp[-2]
-        return self._process_lyp_exp(lypunov_exp, min_time=min_time, max_time=max_time, num_steps=self.num_steps), basis
+        return traj_rev, self._process_lyp_exp(lypunov_exp, min_time=min_time, max_time=max_time, num_steps=self.num_steps), basis
 
     def plot_exponents(self, exp=None, y_lims=False, show=True):
         if self.exp is None and exp is None:
@@ -248,33 +272,35 @@ class NonCovarientLyp(Lyp):
         return np.array(exp_hold)
 
 
-class CovarientLyp(Lyp):
-    _name = "Covarient"
-    def __init__(self, system) -> None:
-        Lyp.__init__(self, system)
-        self.exp = None
-        self.vec = None
-
-
 class Fowards(NonCovarientLyp):
 
     def __init__(self, system) -> None:
         NonCovarientLyp.__init__(self, system)
 
-    def _set_data(self, n_vecs):
+    def _set_data(self, n_vecs, traj_to_follow):
         self.system_functions = self.system.funcs()
         self.jacobian_functions = self.system.jacobian.funcs()
-        self.exp, self.vec = self._reverse_gram_schmidt(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step, n_vecs=n_vecs)
+        self.traj, self.exp, self.vec = self._reverse_gram_schmidt(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step, n_vecs=n_vecs, traj_to_follow=traj_to_follow)
+
+    def pass_traj(self):
+        if self.traj is None:
+            self._set_data()
+        return self.traj
 
     def exponents(self, n_vecs=None):
         if self.exp is None:
             self._set_data(n_vecs)
         return self.exp
     
-    def vectors(self, n_vecs=None):
+    def vectors(self, n_vecs=None, traj_to_follow=None):
         if self.vec is None:
-            self._set_data(n_vecs)
+            self._set_data(n_vecs, traj_to_follow)
         return self.vec
+
+    def all_data(self, n_vecs=None):
+        if (self.exp is None) or (self.vec is None):
+            self._set_data(n_vecs)
+        return self.traj, self.exp, self.vec
 
 
 class Backwards(NonCovarientLyp):
@@ -282,10 +308,15 @@ class Backwards(NonCovarientLyp):
     def __init__(self, system) -> None:
         NonCovarientLyp.__init__(self, system)
 
-    def _set_data(self, n_vecs):
+    def _set_data(self, n_vecs=None):
         self.system_functions = self.system.funcs()
         self.jacobian_functions = self.system.jacobian.funcs()
-        self.exp, self.vec = self._gram_schmidt_method(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step, n_vecs=n_vecs)
+        self.traj, self.exp, self.vec = self._gram_schmidt_method(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step, n_vecs=n_vecs)
+
+    def pass_traj(self):
+        if self.traj is None:
+            self._set_data()
+        return self.traj
 
     def exponents(self, n_vecs=None):
         if self.exp is None:
@@ -297,7 +328,113 @@ class Backwards(NonCovarientLyp):
             self._set_data(n_vecs)
         return self.vec
 
-        
+    def all_data(self, n_vecs=None):
+        if (self.exp is None) or (self.vec is None):
+            self._set_data(n_vecs)
+        return self.traj, self.exp, self.vec
+
+
+class CovarientLyp(NonCovarientLyp):
+    _name = "Covarient"
+    def __init__(self, system) -> None:
+        Lyp.__init__(self, system)
+
+        self.traj = None
+        self.exp = None
+        self.fwd_vec = None
+        self.bkw_vec = None
+
+    def _set_data(self, n_vecs):
+        if n_vecs is None:
+            self.num_vecs = self.dim[1]
+        else:
+            self.num_vecs = n_vecs
+
+        self.system_functions = self.system.funcs()
+        self.jacobian_functions = self.system.jacobian.funcs()
+
+        self.traj = np.empty((self.num_steps * 2, self.dim[1]))
+        self.exp = np.empty((self.num_steps, self.num_vecs))
+        self.fwd_vec = np.empty((self.num_steps, self.dim[1], self.num_vecs))
+        self.bkw_vec = np.empty((self.num_steps, self.dim[1], self.num_vecs))
+
+    @staticmethod
+    def _nullspace(A, atol=1e-13, rtol=0):
+        A = np.atleast_2d(A)
+        u, s, vh = np.linalg.svd(A)
+
+        tol = max(atol, rtol * s[0])
+        nnz = (s >= tol).sum()
+        ns = vh[nnz:].conj().T
+        return ns
+    
+    def _O_A(self):
+        # Ensure trajectory is on the attractor
+        # Only safe the final location
+        traj_ini = self.trajectory()[-1]
+        return traj_ini
+
+    def _A_B(self, ic):
+        # Given an initial corrdinate for the trajectory produce the trajectory and corisponding backwards Lyapunov vecs
+        self.set_params({'ini_points': ic})
+        t, e, v = self._gram_schmidt_method(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step, n_vecs=self.num_vecs)
+        return t, v
+
+    def _B_C(self, ic):
+        self.set_params({'ini_points': ic})
+        return self.trajectory()
+
+    def _C_B(self, traj):
+        ic = traj[-1]
+        self.set_params({'ini_points': ic})
+        t, e, v = self._reverse_gram_schmidt(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step, n_vecs=self.num_vecs, traj_to_follow=traj)
+        return v
+    
+    def _B_A(self, phi_p, phi_m):
+        gamma = np.zeros_like(phi_m)
+
+        for t in range(self.num_steps-1, -1, -1):
+            p = phi_p[self.num_steps - t - 1].T @ phi_m[t]
+            
+            gamma[t, :, 0] = phi_m[t, :, 0]
+            for j in range(1, self.num_vecs):
+                a = self._nullspace(p[:j, :j+1])
+                gamma[t, :, j:j+1] = phi_m[t, :, :j+1] @ a
+        return gamma
+
+    def covariant_vectors(self, num_vecs=None):
+        self._set_data(num_vecs)
+
+        # Run trajectory forwards to reach attractor
+        ic = self._O_A()
+
+        # Run and save trajectory and backwards Lyapunov vectors
+        self.traj[:self.num_steps], self.bkw_vec = self._A_B(ic)
+
+        # Run trajectory another set time to have trajectory to run backwards over in next step
+        self.traj[self.num_steps:] = self._B_C(self.traj[self.num_steps-1])
+
+        # Run trajectory backwards and calculate forwards Lyapunov Vectors
+        self.fwd_vec = self._C_B(self.traj[self.num_steps:])
+
+        # Calculate the covariant Lyapunov vectors
+        gamma = self._B_A(self.fwd_vec, self.bkw_vec)
+
+        return gamma
+
+    def all_data(self):
+        return super().all_data()
+
+    def pass_traj(self):
+        return super().pass_traj()
+
+    def exponents(self):
+        return super().exponents()
+    
+    def vectors(self):
+        return super().vectors()
+
+    
 class Lyapunov(Lyp):
 
     _name = "Lyapunov"
@@ -341,9 +478,10 @@ class Lyapunov(Lyp):
     def backwards(self):
         return Backwards(self.system)
 
+    @property
+    def covariant(self):
+        return CovarientLyp(self.system)
 
-# TODO: Read papers about calculating the covarient vectors
-# TODO: Make a visualisation class
 
 
 if __name__ == "__main__":
@@ -352,7 +490,12 @@ if __name__ == "__main__":
     rho = symbols('rho')
 
     system = lorenz()
-    diag = Lyapunov(system)
-    # print(diag.forwards.max_lyapunov_exp())
-    # print(diag.forwards.exponent_alter_param(rho, 0, 10, 10))
-    print(diag.forwards.exponents(n_vecs=1))
+    diag = Lyapunov(system).covariant
+    diag.set_params({'max_time': 2})
+
+    # print(diag.max_lyapunov_exp())
+    # print(diag.exponent_alter_param(rho, 0, 10, 10))
+    # print(diag.vectors())
+    # diag.set_params({'ini_point': np.array([1, 1, 1])})
+    # fwd, bkw = diag.covariant_vectors(num_vecs=3)
+    print(diag.covariant_vectors(num_vecs=3))
