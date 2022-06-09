@@ -277,7 +277,7 @@ class Fowards(NonCovarientLyp):
     def __init__(self, system) -> None:
         NonCovarientLyp.__init__(self, system)
 
-    def _set_data(self, n_vecs, traj_to_follow):
+    def _set_data(self, n_vecs=None, traj_to_follow=None):
         self.system_functions = self.system.funcs()
         self.jacobian_functions = self.system.jacobian.funcs()
         self.traj, self.exp, self.vec = self._reverse_gram_schmidt(min_time=self.min_time, max_time=self.max_time, time_step=self.time_step, n_vecs=n_vecs, traj_to_follow=traj_to_follow)
